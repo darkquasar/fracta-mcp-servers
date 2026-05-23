@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint & resolve
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        server: [concept-extractor]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.11"
+
+      - name: Resolve lockfile
+        working-directory: servers/${{ matrix.server }}
+        run: |
+          # Verify pyproject.toml is resolvable. If a lockfile exists, check it
+          # matches; otherwise just resolve fresh.
+          if [ -f uv.lock ]; then
+            uv lock --check
+          else
+            uv lock
+          fi
+
+      - name: Sync (skip torch index resolution failures gracefully)
+        working-directory: servers/${{ matrix.server }}
+        run: uv sync --frozen || uv sync

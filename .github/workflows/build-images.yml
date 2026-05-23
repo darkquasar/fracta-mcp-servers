@@ -1,0 +1,98 @@
+name: Build Images
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  discover:
+    name: Discover servers
+    runs-on: ubuntu-latest
+    outputs:
+      servers: ${{ steps.list.outputs.servers }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: List server directories
+        id: list
+        run: |
+          set -euo pipefail
+          # Every immediate subdir of servers/ with a Dockerfile is a build target.
+          servers=$(
+            find servers -mindepth 1 -maxdepth 1 -type d \
+              -exec test -f {}/Dockerfile \; -print \
+              | sed 's|^servers/||' \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))'
+          )
+          echo "servers=${servers}" >> "$GITHUB_OUTPUT"
+          echo "discovered: ${servers}"
+
+  build:
+    name: Build ${{ matrix.server }}
+    needs: discover
+    if: needs.discover.outputs.servers != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        server: ${{ fromJson(needs.discover.outputs.servers) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        # Skip login for PRs from forks (no secret access); they only build, not push.
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.server }}
+          tags: |
+            # main pushes: rolling :latest + monotonic per-push tag
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') && !contains(github.ref_name, '-') }}
+            type=raw,value=main-${{ github.run_number }},enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            # immutable per-commit
+            type=sha,prefix=sha-,format=short
+            # branch ref (for PR preview / debugging)
+            type=ref,event=branch
+            type=ref,event=pr
+            # semver tag pushes
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: servers/${{ matrix.server }}
+          file: servers/${{ matrix.server }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          # Only push on non-PR events (main branch + tags).
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.server }}
+          cache-to: type=gha,scope=${{ matrix.server }},mode=max

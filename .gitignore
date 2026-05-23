@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.python-version
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Build artifacts
+build/
+dist/
+*.whl
+
+# Local model caches (huge; should never be committed)
+models/
+.hf_cache/
+.cache/
+
+# Tooling
+.DS_Store
+.idea/
+.vscode/
+
+# Local dev
+.env
+.env.local
+*.local.yaml
+
+# Claude / agent artifacts
+.claude/
+.fracta/
+.worktrees/

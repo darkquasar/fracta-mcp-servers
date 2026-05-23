@@ -1,0 +1,13 @@
+version: 1
+description: |
+  fracta-mcp-servers catalog. Each entry points to a per-server server.yaml
+  under servers/<id>/. These servers are paired with entries in
+  fracta/mcp-servers/catalog.yaml; fracta consumes the GHCR images this repo
+  publishes.
+status_values:
+  tested: Connected and listed tools through fracta in at least one supported mode.
+  documented: Server is built and published, but fracta smoke test is still pending.
+  candidate: New entry that needs fracta smoke testing before promotion.
+servers:
+  - id: concept-extractor
+    path: servers/concept-extractor/server.yaml
