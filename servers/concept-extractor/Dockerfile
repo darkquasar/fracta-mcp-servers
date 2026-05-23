@@ -39,20 +39,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev || uv sync --no-dev
 
 # Pre-download model weights into a build-time-known cache location.
+# `uv pip install` is used for the spaCy model wheel because `spacy download`
+# shells out in a way that doesn't play nicely with uv-managed environments.
 ENV HF_HOME=/opt/models \
     SENTENCE_TRANSFORMERS_HOME=/opt/models/sentence-transformers
-RUN mkdir -p /opt/models && \
-    /opt/venv/bin/python -m spacy download en_core_web_sm && \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    mkdir -p /opt/models && \
+    uv pip install --python /opt/venv/bin/python \
+        "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl" && \
     /opt/venv/bin/python - <<'PY'
 from keybert import KeyBERT
 from gliner import GLiNER
 
-# Warm the sentence-transformer used by KeyBERT
 KeyBERT(model="all-MiniLM-L6-v2")
-
-# Warm the default GLiNER model
 GLiNER.from_pretrained("urchade/gliner_medium-v2.1")
-
 print("models pre-downloaded")
 PY
 
