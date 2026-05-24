@@ -1,10 +1,9 @@
-id: concept-extractor
-name: Concept Extractor MCP
+id: concept-spacy
+name: Concept spaCy MCP
 category: nlp
 status: candidate
 description: >-
-  KeyBERT, GLiNER (zero-shot NER), and spaCy exposed as MCP tools for
-  concept and entity extraction.
+  spaCy NER and noun-chunk extraction exposed as a single MCP tool.
 upstream:
   type: first_party
   url: https://github.com/darkquasar/fracta-mcp-servers
@@ -16,14 +15,24 @@ auth:
     policy and observability; this server trusts the gateway envelope.
 variants:
   container:
-    image: ghcr.io/darkquasar/fracta-mcp-servers/concept-extractor:latest
+    image: ghcr.io/darkquasar/fracta-mcp-servers/concept-spacy:latest
     image_owner: fracta
     transport: streamable-http
-    service_url: http://concept-extractor.fracta.svc:8000/mcp
+    service_url: http://concept-spacy.fracta.svc:8000/mcp
 support:
   local_process: not_supported
   docker_compose: supported
   kubernetes: supported
+# Rough sizing — informed estimates, not measured under sustained load.
+# spaCy en_core_web_sm is ~50 MB resident; no torch, no GPU codepath.
+# Single-threaded inference, so CPU > 1 is wasted.
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 512Mi
+    cpu: 1000m
 docker:
   dockerfile: ""
   build_target: ""
@@ -32,15 +41,11 @@ verification:
   tested_on: ""
   smoke_test: list_tools
   expected_tools_contains:
-    - keybert_extract_tool
-    - gliner_extract_tool
     - spacy_extract_tool
 notes: |
   Image built and published by github.com/darkquasar/fracta-mcp-servers
-  (see servers/concept-extractor/). fracta consumes the published GHCR
+  (see servers/concept-spacy/). fracta consumes the published GHCR
   image only — fracta does not own the Dockerfile.
 
-  Default models (override via env on the container):
-    CONCEPT_EXTRACTOR_KEYBERT_BACKBONE = all-MiniLM-L6-v2
-    CONCEPT_EXTRACTOR_GLINER_MODEL     = urchade/gliner_medium-v2.1
-    CONCEPT_EXTRACTOR_SPACY_MODEL      = en_core_web_sm
+  Default model (override via env on the container):
+    CONCEPT_SPACY_MODEL = en_core_web_sm

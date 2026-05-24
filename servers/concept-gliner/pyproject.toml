@@ -1,7 +1,7 @@
 [project]
-name = "concept-extractor"
+name = "concept-gliner"
 version = "0.1.0"
-description = "MCP server exposing KeyBERT, GLiNER, and spaCy as concept extraction tools."
+description = "MCP server exposing GLiNER zero-shot NER as a single tool."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = { text = "MIT" }
@@ -12,31 +12,25 @@ dependencies = [
     "anyio>=4.4,<5.0",
     "structlog>=24.1,<26.0",
     "pydantic>=2.7,<3.0",
-    # NLP / ML
-    "keybert>=0.9,<0.10",
+    # Direct torch dependency so [tool.uv.sources] below actually applies
+    # (uv source overrides only bind to direct deps, not transitive ones).
+    "torch>=2.7,<3.0",
     "gliner>=0.2.20,<0.3",
-    "spacy>=3.7,<4.0",
-    "sentence-transformers>=3.0,<5.0",
     "transformers>=4.44,<5.0",
     "huggingface_hub>=0.24,<1.0",
-    # Statistical keyphrase
-    "yake>=0.4.8,<0.5",
-    "rake-nltk>=1.0.6,<2.0",
 ]
 
 [project.scripts]
-concept-extractor = "concept_extractor.server:main"
+concept-gliner = "concept_gliner.server:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/concept_extractor"]
+packages = ["src/concept_gliner"]
 
 [tool.uv]
-# Pin torch to the CPU index — these tools run fine on CPU and we don't want
-# CUDA wheels bloating the image.
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"

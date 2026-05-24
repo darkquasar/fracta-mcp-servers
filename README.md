@@ -25,9 +25,26 @@ fracta-mcp-servers/
 
 ## Current servers
 
-| Server | Description | Tools | Status | Image |
+The `concept-*` family: keyphrase ranking, zero-shot NER, and a linguistic baseline. Each runs in its own image so a bug in one (or a heavy model in one) doesn't take down the others. Designed as the smart-classifier alternative to n-gram heuristics in fracta's knowledge-garden strategy family.
+
+### When to pick which
+
+| You want… | Reach for | Why |
+|---|---|---|
+| **Standard named entities** (people, orgs, places, dates) with no setup | [`concept-spacy`](servers/concept-spacy/) | Closed-schema NER from spaCy's built-in pipeline. ~515 MB image, fastest, no GPU/torch. The default if `PERSON`/`ORG`/`GPE`/etc. is enough. |
+| **Domain-specific or custom-label entities** ("Theory", "Drug", "MalwareFamily", …) | [`concept-gliner`](servers/concept-gliner/) | Zero-shot NER — caller supplies the label taxonomy per call. No fine-tuning. Trade-off: ~4.6 GB image (DeBERTa-v3 backbone) and slower inference than spaCy. |
+| **Ranked keyphrases** ("what is this text about, in N phrases?") | [`concept-keybert`](servers/concept-keybert/) | Embedding-based keyphrase ranking with MMR diversity. Not for entities — for *characteristic phrases* of the input. ~2 GB image. |
+
+The three are complementary, not alternatives. A common pipeline is to
+run `concept-spacy` first as a cheap pass, then escalate uncertain spans
+to `concept-gliner`, and use `concept-keybert` separately for topical
+summarization signals.
+
+| Server | Description | Tool | Status | Image |
 |---|---|---|---|---|
-| [`concept-extractor`](servers/concept-extractor/) | Concept and entity extraction from text — keyphrase ranking, zero-shot NER, and linguistic baseline features. Designed as the smart-classifier alternative to n-gram heuristics in fracta's knowledge-garden strategy family. | `keybert_extract_tool` · `gliner_extract_tool` · `spacy_extract_tool` | `candidate` | [![image](https://ghcr-badge.egpl.dev/darkquasar/fracta-mcp-servers/concept-extractor/latest_tag?trim=major&label=latest)](https://github.com/darkquasar/fracta-mcp-servers/pkgs/container/fracta-mcp-servers%2Fconcept-extractor) <br> `ghcr.io/darkquasar/fracta-mcp-servers/concept-extractor` |
+| [`concept-keybert`](servers/concept-keybert/) | KeyBERT keyphrase extraction (sentence-transformer embeddings + MMR). | `keybert_extract_tool` | `candidate` | [![image](https://ghcr-badge.egpl.dev/darkquasar/fracta-mcp-servers/concept-keybert/latest_tag?trim=major&label=latest)](https://github.com/darkquasar/fracta-mcp-servers/pkgs/container/fracta-mcp-servers%2Fconcept-keybert) <br> `ghcr.io/darkquasar/fracta-mcp-servers/concept-keybert` |
+| [`concept-gliner`](servers/concept-gliner/) | GLiNER zero-shot NER — caller supplies the label taxonomy per call. | `gliner_extract_tool` | `candidate` | [![image](https://ghcr-badge.egpl.dev/darkquasar/fracta-mcp-servers/concept-gliner/latest_tag?trim=major&label=latest)](https://github.com/darkquasar/fracta-mcp-servers/pkgs/container/fracta-mcp-servers%2Fconcept-gliner) <br> `ghcr.io/darkquasar/fracta-mcp-servers/concept-gliner` |
+| [`concept-spacy`](servers/concept-spacy/) | spaCy linguistic baseline — built-in NER plus noun chunks. No torch dep; smallest of the three. | `spacy_extract_tool` | `candidate` | [![image](https://ghcr-badge.egpl.dev/darkquasar/fracta-mcp-servers/concept-spacy/latest_tag?trim=major&label=latest)](https://github.com/darkquasar/fracta-mcp-servers/pkgs/container/fracta-mcp-servers%2Fconcept-spacy) <br> `ghcr.io/darkquasar/fracta-mcp-servers/concept-spacy` |
 
 Pull any image with:
 

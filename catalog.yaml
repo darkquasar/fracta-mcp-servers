@@ -9,5 +9,9 @@ status_values:
   documented: Server is built and published, but fracta smoke test is still pending.
   candidate: New entry that needs fracta smoke testing before promotion.
 servers:
-  - id: concept-extractor
-    path: servers/concept-extractor/server.yaml
+  - id: concept-keybert
+    path: servers/concept-keybert/server.yaml
+  - id: concept-gliner
+    path: servers/concept-gliner/server.yaml
+  - id: concept-spacy
+    path: servers/concept-spacy/server.yaml

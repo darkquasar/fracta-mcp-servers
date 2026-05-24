@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# Multi-stage build using uv. Pre-downloads model weights into the image so
-# first request doesn't pay model-load latency.
+# Multi-stage build using uv. Pre-downloads the KeyBERT backbone weights
+# into /opt/models so the first request doesn't pay model-load latency.
 
 ARG PYTHON_VERSION=3.12
 ARG UV_VERSION=0.5.11
@@ -9,7 +9,6 @@ ARG UV_VERSION=0.5.11
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-bin
 FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
 
-# Copy uv binary
 COPY --from=uv-bin /uv /usr/local/bin/uv
 
 ENV UV_LINK_MODE=copy \
@@ -19,41 +18,35 @@ ENV UV_LINK_MODE=copy \
 
 WORKDIR /app
 
-# Install system build deps just for the wheels that need them.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Resolve and install Python dependencies first (layer-cache friendly).
+# Resolve deps first (layer-cache friendly).
 COPY pyproject.toml uv.lock* ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev || \
     uv sync --no-install-project --no-dev
 
-# Now copy the source and install the project itself.
+# Install the project itself. --no-editable so site-packages contains real
+# files instead of a .pth pointing at /app/src — /app/src doesn't exist in
+# the runtime stage.
 COPY src/ ./src/
 COPY README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev || uv sync --no-dev
+    uv sync --frozen --no-dev --no-editable || uv sync --no-dev --no-editable
 
-# Pre-download model weights into a build-time-known cache location.
-# `uv pip install` is used for the spaCy model wheel because `spacy download`
-# shells out in a way that doesn't play nicely with uv-managed environments.
+# Pre-download the KeyBERT backbone into the image cache.
 ENV HF_HOME=/opt/models \
     SENTENCE_TRANSFORMERS_HOME=/opt/models/sentence-transformers
 RUN --mount=type=cache,target=/root/.cache/uv \
     mkdir -p /opt/models && \
-    uv pip install --python /opt/venv/bin/python \
-        "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl" && \
     /opt/venv/bin/python - <<'PY'
 from keybert import KeyBERT
-from gliner import GLiNER
-
 KeyBERT(model="all-MiniLM-L6-v2")
-GLiNER.from_pretrained("urchade/gliner_medium-v2.1")
-print("models pre-downloaded")
+print("keybert backbone pre-downloaded")
 PY
 
 # ---------- runtime ----------
@@ -64,10 +57,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
     HF_HOME=/opt/models \
     SENTENCE_TRANSFORMERS_HOME=/opt/models/sentence-transformers \
-    CONCEPT_EXTRACTOR_HOST=0.0.0.0 \
-    CONCEPT_EXTRACTOR_PORT=8000
+    CONCEPT_KEYBERT_HOST=0.0.0.0 \
+    CONCEPT_KEYBERT_PORT=8000
 
-# Minimal runtime deps; no build-essential.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         libgomp1 \
@@ -77,16 +69,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Pull the virtualenv and the pre-warmed model cache from the builder.
+# Pull venv + pre-warmed model cache from the builder. chown the model cache
+# so the non-root runtime user can write HF .no_exist/ markers without
+# permission errors.
 COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /opt/models /opt/models
-# spaCy installs en_core_web_sm into the venv (as a package), already covered.
+COPY --from=builder --chown=app:app /opt/models /opt/models
 
 USER app
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/mcp', timeout=5)" \
+    CMD python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('127.0.0.1', 8000)); s.close()" \
     || exit 1
 
-ENTRYPOINT ["concept-extractor"]
+ENTRYPOINT ["concept-keybert"]
